@@ -106,7 +106,7 @@
     document.title = (isGV ? S.who : 'Lớp ' + S.who) + ' – Thời khóa biểu';
     $('out').innerHTML = tt.html;
     $('legend').innerHTML = tt.legend;
-    $('below').hidden = false;
+    $('below').hidden = false; $('legend').hidden = !tt.legend;
   }
 
   function show() {

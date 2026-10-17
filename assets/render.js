@@ -44,66 +44,38 @@
   function key(list) { return list ? JSON.stringify(list) : ''; }
 
   /**
-   * Dựng bảng (máy tính) + danh sách theo ngày (điện thoại).
-   * opts.today: thứ cần tô sáng (2..7) hoặc null
+   * Bảng kiểu truyền thống: cột Buổi (chữ dọc) – Tiết – Thứ 2..7.
+   * Ô: môn (chữ đậm) + tên GV viết tắt / lớp (chữ đỏ). Buổi chiều nền xám.
    */
-  function timetable(data, T, mode, who, opts) {
-    opts = opts || {};
-    var used = {}, total = 0, html = '', mob = {}, sess = [['S', 'Buổi sáng'], ['C', 'Buổi chiều']];
-    DAYS.forEach(function (d) { mob[d] = ''; });
-    html += '<div class="sheet grid-view"><table class="tt"><colgroup><col class="c-p">' + DAYS.map(function () { return '<col>'; }).join('') + '</colgroup>' +
-      '<thead><tr><th>Tiết</th>' + DAYS.map(function (d) {
-        return '<th class="day' + (opts.today === d ? ' today' : '') + '">Thứ ' + d + (opts.today === d ? '<span class="dsub">Hôm nay</span>' : '') + '</th>';
-      }).join('') + '</tr></thead><tbody>';
-    sess.forEach(function (bs, si) {
-      var b = bs[0], n = 0, M = {};
-      for (var p = 1; p <= (data.nper[b] || 0); p++) DAYS.forEach(function (d) {
-        var it = items(data, T, mode, who, b, d, p);
-        (M[p] = M[p] || {})[d] = it;
-        if (it) { n = Math.max(n, p); total += 1; it.forEach(function (x) { used[x.s] = 1; }); }
-      });
-      if (b === 'S') n = Math.max(n, data.nper.S || 5);
-      var cnt = 0; for (p = 1; p <= n; p++) DAYS.forEach(function (d) { if (M[p][d]) cnt++; });
-      html += '<tr class="sess' + (si === 0 ? ' first' : '') + '"><td colspan="7">' + bs[1] + '<span>' + (cnt ? cnt + ' tiết' : 'Không có tiết') + '</span></td></tr>';
-      // gộp các tiết liền nhau giống nhau
-      var span = {}, skip = {};
-      DAYS.forEach(function (d) {
-        for (var p = 1; p <= n; p++) {
-          if (skip[p + '|' + d] || !M[p][d]) continue;
-          var k = key(M[p][d]), q = p + 1;
-          while (q <= n && key(M[q][d]) === k) { skip[q + '|' + d] = 1; q++; }
-          span[p + '|' + d] = q - p;
-        }
-      });
-      for (p = 1; p <= n; p++) {
-        html += '<tr><td class="p">' + p + '</td>';
-        DAYS.forEach(function (d) {
-          if (skip[p + '|' + d]) return;
-          var s = span[p + '|' + d] || 1, td = opts.today === d ? ' class="today"' : '';
-          html += '<td' + td + (s > 1 ? ' rowspan="' + s + '"' : '') + '>' + tileHTML(M[p][d], s > 1 ? s * 64 - 9 : 0) + '</td>';
-        });
-        html += '</tr>';
+  function schoolPeriods(data, b) {
+    var g = data.grid[b] || {}, mx = 0;
+    Object.keys(g).forEach(function (c) { Object.keys(g[c]).forEach(function (d) { Object.keys(g[c][d]).forEach(function (p) { if (+p > mx) mx = +p; }); }); });
+    return mx;
+  }
+  function cell(data, T, mode, who, b, d, p) {
+    if (mode === 'gv') {
+      var t = T[who], x = t && t[b][d] && t[b][d][p];
+      if (!x) return '';
+      return '<div class="sub" title="' + esc(subj(x[0][0])) + '">' + esc(x[0][0]) + '</div><div class="who">' + esc(x.map(function (z) { return z[1]; }).join(', ')) + '</div>';
+    }
+    var g = data.grid[b][who], v = g && g[d] && g[d][p];
+    if (!v) return '';
+    return '<div class="sub" title="' + esc(subj(v[0]) + (v[2] ? ' – ' + v[2] : '')) + '">' + esc(v[0]) + '</div>' + (v[1] ? '<div class="who">' + esc(v[1]) + '</div>' : '');
+  }
+  function timetable(data, T, mode, who) {
+    var total = 0, rows = '';
+    [['S', 'SÁNG', Math.max(data.nper.S || 5, 1)], ['C', 'CHIỀU', Math.max(schoolPeriods(data, 'C'), 2)]].forEach(function (bb) {
+      for (var p = 1; p <= bb[2]; p++) {
+        rows += '<tr class="' + (bb[0] === 'C' ? 'pm' : 'am') + '">' +
+          (p === 1 ? '<td class="buoi" rowspan="' + bb[2] + '"><span>' + bb[1] + '</span></td>' : '') + '<td class="tiet">' + p + '</td>';
+        DAYS.forEach(function (d) { var h = cell(data, T, mode, who, bb[0], d, p); if (h) total++; rows += '<td>' + h + '</td>'; });
+        rows += '</tr>';
       }
-      // danh sách theo ngày
-      DAYS.forEach(function (d) {
-        var rows = '';
-        for (var p = 1; p <= n; p++) {
-          if (skip[p + '|' + d] || !M[p][d]) continue;
-          var s = span[p + '|' + d] || 1;
-          rows += '<div class="drow"><span class="pl">Tiết ' + p + (s > 1 ? '–' + (p + s - 1) : '') + '</span>' + tileHTML(M[p][d]) + '</div>';
-        }
-        if (rows) mob[d] += '<div class="dsess">' + bs[1] + '</div>' + rows;
-      });
     });
-    html += '</tbody></table></div><div class="days">' + DAYS.map(function (d) {
-      var t = opts.today === d;
-      return '<div class="dcard' + (t ? ' today' : '') + '"><h3>Thứ ' + d + (t ? '<small>Hôm nay</small>' : '') + '</h3>' +
-        (mob[d] || '<div class="dnone">Không có tiết</div>') + '</div>';
-    }).join('') + '</div>';
-    var legend = Object.keys(used).filter(function (s) { return COLORED[s]; })
-      .sort(function (a, b) { return subj(a).localeCompare(subj(b), 'vi'); })
-      .map(function (s) { return '<span class="s-' + s + '">' + esc(subj(s)) + '</span>'; }).join('');
-    return { html: html, legend: legend, total: total };
+    var html = '<div class="tablewrap"><table class="tkb"><colgroup><col class="c-buoi"><col class="c-tiet">' +
+      DAYS.map(function () { return '<col>'; }).join('') + '</colgroup><thead><tr><th>BUỔI</th><th>TIẾT</th>' +
+      DAYS.map(function (d) { return '<th>THỨ ' + d + '</th>'; }).join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    return { html: html, legend: '', total: total };
   }
 
   /* Hộp chọn có tìm kiếm (gõ không dấu vẫn tìm được) */

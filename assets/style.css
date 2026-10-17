@@ -212,3 +212,19 @@ details.help ol { padding-left: 20px; margin: 8px 0 0; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @page { size: A4 landscape; margin: 10mm; }
 }
+
+/* ---------- bảng TKB kiểu truyền thống ---------- */
+.tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; }
+table.tkb { border-collapse: collapse; width: 100%; min-width: 760px; table-layout: fixed; }
+table.tkb th, table.tkb td { border: 1px solid #3f5468; text-align: center; vertical-align: middle; }
+table.tkb thead th { background: #435362; color: #fff; font-weight: 700; height: 58px; font-size: 16px; }
+table.tkb col.c-buoi { width: 13%; }
+table.tkb col.c-tiet { width: 8.5%; }
+table.tkb td.buoi { background: #c6e7fa; font-weight: 800; font-size: 22px; letter-spacing: 1px; }
+table.tkb td.buoi span { writing-mode: vertical-rl; transform: rotate(180deg); display: inline-block; }
+table.tkb td.tiet { font-weight: 700; font-size: 16px; }
+table.tkb tbody td { height: 60px; padding: 4px; }
+table.tkb tr.pm td:not(.buoi) { background: #dfe2e6; }
+table.tkb .sub { font-weight: 700; font-size: 16px; line-height: 1.25; color: var(--ink); }
+table.tkb .who { color: #e03a3a; font-size: 12.5px; line-height: 1.3; margin-top: 2px; }
+@media print { table.tkb { min-width: 0; } table.tkb tbody td { height: 44px; } }
