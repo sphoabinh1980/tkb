@@ -5,7 +5,7 @@ Trang tĩnh chạy trên **GitHub Pages**, miễn phí và không cần máy ch�
 | Trang | Ai dùng | Chức năng |
 |---|---|---|
 | `index.html` | Giáo viên, học sinh | Chọn **ngày áp dụng** và **giáo viên** hoặc **lớp** để xem TKB tuần. Có nút In và nút Sao chép link. |
-| `admin.html` | Người xếp TKB | Tải **file Excel TKB** lên, chọn **ngày áp dụng**, xem thử rồi bấm **Đăng**. Từ đây cũng xóa được các bản cũ. |
+| Tab **Quản trị** (`?xem=quantri`) | Người xếp TKB | Tải **file Excel TKB** lên, chọn **ngày áp dụng**, xem thử rồi bấm **Đăng**. Từ đây cũng xóa được các bản cũ. |
 
 Mỗi lần đăng sẽ thêm một bản TKB mới, các bản cũ vẫn giữ. Ô "Ngày áp dụng" tự chọn bản đang có hiệu lực hôm nay. Bản có ngày áp dụng sau hôm nay được ghi "(sắp áp dụng)".
 
@@ -21,7 +21,7 @@ Mỗi lần đăng sẽ thêm một bản TKB mới, các bản cũ vẫn giữ.
 4. Đợi khoảng 1–2 phút. Địa chỉ trang có dạng:
    `https://sphoabinh1980.github.io/tkb/` (trang này)
    - Gửi địa chỉ này cho giáo viên và học sinh.
-   - Trang quản trị ở `https://<tên-tài-khoản>.github.io/tkb/admin.html`.
+   - Trang quản trị là tab **Quản trị** ngay trên trang này.
 
 Muốn đổi tên trường hiển thị trên đầu trang thì sửa file `assets/config.js`.
 
@@ -35,13 +35,13 @@ Trang quản trị cần token để ghi dữ liệu vào kho.
    - *Repository access*: **Only select repositories**, chọn kho `tkb`.
    - *Permissions → Repository permissions → Contents*: **Read and write**.
 3. Bấm **Generate token** và sao chép token (bắt đầu bằng `github_pat_…`).
-4. Mở `admin.html`. Ở mục 1, nhập chủ kho, tên kho và token, rồi bấm **Lưu & kiểm tra kết nối**.
+4. Mở tab **Quản trị**. Ở mục *Kết nối GitHub*, nhập chủ kho, tên kho và token, rồi bấm **Lưu & kiểm tra kết nối**.
 
-Token chỉ được lưu trong trình duyệt của máy đang dùng, không đưa lên trang. Người khác mở `admin.html` mà không có token thì không đăng được gì. Nếu dùng máy chung, bấm **Xóa token khỏi máy này** sau khi làm xong.
+Token chỉ được lưu trong trình duyệt của máy đang dùng, không đưa lên trang. Người khác mở tab Quản trị mà không có token thì không đăng được gì. Nếu dùng máy chung, bấm **Xóa token khỏi máy này** sau khi làm xong.
 
 ## 3. Đăng thời khóa biểu mới (mỗi lần thay TKB)
 
-1. Mở `admin.html`, ở mục 2 chọn **file Excel** TKB.
+1. Mở tab **Quản trị**, kéo **file Excel** TKB vào ô tải lên.
 2. Trang đọc file và hiện các thông tin sau để kiểm tra:
    - số lớp, số giáo viên, số tiết;
    - giáo viên trùng tiết, nếu có;
@@ -87,10 +87,11 @@ Sau đó commit thư mục `data/` lên GitHub.
 
 ```
 index.html            trang xem (Giáo viên / Học sinh – Lớp)
-admin.html            trang quản trị
+admin.html            chuyển sang tab Quản trị (giữ link cũ)
 assets/parser.js      bộ đọc Excel (dùng chung cho trình duyệt và tools/)
+assets/render.js      vẽ bảng TKB, ô tìm kiếm (dùng chung)
 assets/app.js         trang xem
-assets/admin.js       trang quản trị (đăng lên GitHub qua API)
+assets/admin.js       tab Quản trị (đăng lên GitHub qua API)
 assets/config.js      tên trường, năm học
 assets/vendor/        thư viện SheetJS đọc Excel (bản 0.18.5, giấy phép Apache-2.0)
 data/index.json       danh sách các bản TKB (ngày áp dụng)
