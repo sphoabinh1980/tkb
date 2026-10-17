@@ -1,0 +1,20 @@
+{
+  "versions": [
+    {
+      "date": "2026-10-19",
+      "file": "tkb/2026-10-19.json",
+      "label": "LẦN 4",
+      "note": "Bản V30 – điều chỉnh tuần 7",
+      "source": "TKB2026_2027_BanChot_V30_Tuan7.xlsx",
+      "uploaded": "2026-10-17T07:39:05.848Z"
+    },
+    {
+      "date": "2026-10-05",
+      "file": "tkb/2026-10-05.json",
+      "label": "LẦN 3",
+      "note": "Bản V29",
+      "source": "tkb.xlsx",
+      "uploaded": "2026-10-17T07:39:05.310Z"
+    }
+  ]
+}

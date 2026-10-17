@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thời khóa biểu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar"><div class="in">
+  <div class="brand"><span id="school">THỜI KHÓA BIỂU</span><small id="year"></small></div>
+  <nav class="tabs">
+    <a href="?xem=gv" data-tab="gv">Giáo viên</a>
+    <a href="?xem=lop" data-tab="lop">Học sinh – Lớp</a>
+  </nav>
+</div></header>
+
+<main>
+  <h1 id="title">THỜI KHÓA BIỂU</h1>
+
+  <div class="filters">
+    <div>
+      <label for="ngay">Ngày áp dụng:</label>
+      <select id="ngay"></select>
+    </div>
+    <div>
+      <label for="ai" id="aiLabel">Giáo viên:</label>
+      <select id="ai"></select>
+    </div>
+    <div class="go"><button class="btn" id="tim">Tìm kiếm</button></div>
+  </div>
+
+  <div id="out"></div>
+
+  <div class="toolbar noprint">
+    <button class="btn ghost" id="copy" title="Sao chép đường link tới thời khóa biểu đang xem">Sao chép link</button>
+    <button class="btn ghost" onclick="window.print()">In</button>
+  </div>
+
+  <p class="foot">Dữ liệu cập nhật từ file Excel thời khóa biểu của nhà trường. Ngày áp dụng mới nhất được chọn sẵn theo ngày hôm nay.</p>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/parser.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

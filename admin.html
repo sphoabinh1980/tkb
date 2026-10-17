@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Quản trị thời khóa biểu</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  .card { border: 1px solid var(--border); border-radius: 6px; padding: 18px 20px; margin-bottom: 22px; background: #fff; }
+  .card h2 { margin: 0 0 14px; font-size: 19px; }
+  .card h2 .n { display: inline-block; width: 26px; height: 26px; border-radius: 50%; background: var(--btn); color: #fff; text-align: center; line-height: 26px; font-size: 14px; margin-right: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+  .f label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  .f input, .f select { width: 100%; height: 42px; padding: 0 12px; font: inherit; font-size: 15px; border: 1px solid var(--border); border-radius: 4px; }
+  .f input[type=file] { padding: 8px; height: auto; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+  .btn.sm { height: 36px; padding: 0 14px; font-size: 14px; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  table.list { border-collapse: collapse; width: 100%; font-size: 14px; }
+  table.list th, table.list td { border-bottom: 1px solid var(--border); padding: 8px 6px; text-align: left; }
+  table.list th { color: var(--muted); font-weight: 600; }
+  .sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+  .sum div { background: var(--panel); padding: 10px 12px; border-radius: 4px; font-size: 13px; color: var(--muted); }
+  .sum b { display: block; font-size: 20px; color: var(--ink); }
+  #log { font-size: 14px; }
+  #log div { padding: 3px 0; }
+  .ok { color: #1e6b35; } .bad { color: var(--accent); }
+  #pv table.tkb { min-width: 640px; }
+  #pv table.tkb tbody td { height: 46px; }
+  #pv td.buoi { font-size: 16px; }
+</style>
+</head>
+<body>
+<header class="topbar"><div class="in">
+  <div class="brand"><span id="school">THỜI KHÓA BIỂU</span><small>Trang quản trị</small></div>
+  <nav class="tabs"><a href="./">← Về trang xem</a></nav>
+</div></header>
+
+<main>
+  <h1>QUẢN TRỊ THỜI KHÓA BIỂU</h1>
+
+  <section class="card">
+    <h2><span class="n">1</span>Kết nối GitHub</h2>
+    <div class="grid">
+      <div class="f"><label>Chủ kho (owner)</label><input id="owner" placeholder="vd: thaygiao-tin"></div>
+      <div class="f"><label>Tên kho (repo)</label><input id="repo" placeholder="vd: tkb"></div>
+      <div class="f"><label>Nhánh</label><input id="branch" value="main"></div>
+      <div class="f"><label>Mã truy cập (token)</label><input id="token" type="password" placeholder="github_pat_..." autocomplete="off"></div>
+    </div>
+    <div class="row">
+      <button class="btn sm" id="save">Lưu &amp; kiểm tra kết nối</button>
+      <button class="btn sm ghost" id="forget">Xóa token khỏi máy này</button>
+      <span id="conn"></span>
+    </div>
+    <p class="hint">Token chỉ lưu trong trình duyệt của máy này, không đưa lên trang. Tạo token loại <i>Fine-grained</i>, chỉ cấp cho kho này, quyền <b>Contents: Read and write</b> (xem README).</p>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">2</span>Đăng thời khóa biểu mới</h2>
+    <div class="grid">
+      <div class="f"><label>File Excel thời khóa biểu (.xlsx)</label><input id="file" type="file" accept=".xlsx,.xlsm,.xls"></div>
+      <div class="f"><label>Ngày áp dụng</label><input id="ngay" type="date"></div>
+      <div class="f"><label>Ghi chú (không bắt buộc)</label><input id="note" placeholder="vd: Điều chỉnh tuần 7"></div>
+    </div>
+    <div class="row"><label><input type="checkbox" id="keep" checked> Lưu kèm file Excel gốc lên kho (để lưu trữ)</label></div>
+    <div id="parsed"></div>
+    <div class="row">
+      <button class="btn" id="publish" disabled>Đăng lên trang</button>
+      <button class="btn ghost" id="dl" disabled title="Không dùng token: tải file về rồi tự tải lên GitHub">Tải dữ liệu về máy</button>
+    </div>
+    <div id="log"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">3</span>Các thời khóa biểu đã đăng</h2>
+    <div id="versions">Đang tải…</div>
+  </section>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/parser.js"></script>
+<script src="assets/vendor/xlsx.full.min.js"></script>
+<script src="assets/admin.js"></script>
+</body>
+</html>
