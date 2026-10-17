@@ -208,8 +208,24 @@
     return ka === kb ? 0 : ka < kb ? -1 : 1;
   }
 
+  // Loại tiết KHÔNG đưa lên trang (theo buổi). Ôn TN buổi chiều của khối 12 có thời khóa biểu riêng.
+  var SKIP = { C: { 'Ôn TN': 1 } };
+  function dropSkipped(grid) {
+    var removed = 0;
+    Object.keys(SKIP).forEach(function (b) {
+      Object.keys(grid[b] || {}).forEach(function (cls) {
+        var g = grid[b][cls];
+        Object.keys(g).forEach(function (d) {
+          Object.keys(g[d]).forEach(function (p) { if (SKIP[b][g[d][p][0]]) { delete g[d][p]; removed++; } });
+          if (!Object.keys(g[d]).length) delete g[d];
+        });
+      });
+    });
+    return removed;
+  }
   /** Chuyển kết quả parseRows -> JSON gọn để lưu */
   function toData(p, meta) {
+    p.skipped = dropSkipped(p.grid);
     var order = Object.keys(p.classes);
     order.sort(sortClasses);                 // giữ thứ tự cột trong file, chỉ xếp theo khối
     return {
@@ -261,5 +277,5 @@
   }
 
   return { SUBJECTS: SUBJECTS, parseRows: parseRows, parseWorkbook: parseWorkbook,
-           toData: toData, teacherIndex: teacherIndex, findDate: findDate };
+           toData: toData, teacherIndex: teacherIndex, findDate: findDate, dropSkipped: dropSkipped, SKIP: SKIP };
 });

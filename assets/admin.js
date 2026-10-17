@@ -105,6 +105,7 @@
         '<div><b>' + (p.applyDate ? vnDate(p.applyDate) : '—') + '</b>ngày ghi trong file</div>';
       var notes = '<div class="note ok">Đã đọc các sheet ' + esc(p.sheetsUsed.join(', ')) + '. ' +
         (p.dirSheets ? 'Đã tra họ tên đầy đủ của giáo viên từ bảng phân công trong file.' : 'File không có sheet phân công nên giáo viên hiển thị theo tên viết tắt.') + '</div>';
+      if (p.skipped) notes += '<div class="note">Đã bỏ ' + p.skipped + ' tiết Ôn TN buổi chiều (khối 12 có thời khóa biểu riêng).</div>';
       notes += p.warnings.map(function (w) { return '<div class="note warn">' + esc(w) + '</div>'; }).join('');
       if (clashes.length) notes += '<div class="note warn"><b>' + clashes.length + ' trường hợp giáo viên trùng tiết.</b> Kiểm tra lại trước khi đăng:<br>' + clashes.slice(0, 12).map(esc).join('<br>') + (clashes.length > 12 ? '<br>…' : '') + '</div>';
       q('#a-notes').innerHTML = notes;

@@ -72,6 +72,7 @@ Trang đọc đúng mẫu file TKB hiện tại của trường:
 
   Nhờ vậy các thầy cô trùng tên viết tắt (P.T.Nga, N.P.Nga, V.T.P.Thảo…) được tách đúng người. Hai cô Nguyễn Thị Hạnh dạy Văn và Tiếng Trung cũng được tách theo môn.
 - Các sheet kiểm tra khác được bỏ qua.
+- Tiết **Ôn TN buổi chiều** không đưa lên trang (khối 12 có thời khóa biểu ôn thi riêng). Muốn đổi, sửa biến `SKIP` trong `assets/parser.js`.
 
 ## 5. Chuyển đổi bằng máy tính (tùy chọn)
 
