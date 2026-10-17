@@ -78,30 +78,40 @@
     return { html: html, legend: '', total: total };
   }
 
-  /* Hộp chọn có tìm kiếm (gõ không dấu vẫn tìm được) */
+  /* Hộp chọn: bấm vào hiện toàn bộ danh sách, gõ để lọc (gõ không dấu vẫn tìm được) */
   function Combo(input, list, onPick) {
-    var opts = [], shown = [], act = -1, self = this, value = null;
-    function label(o) { return o ? o.label : ''; }
-    function draw() {
-      var q = fold(input.value.trim()), html = '', g = null;
+    var opts = [], shown = [], act = -1, self = this, value = null, typed = false;
+    var wrap = input.parentNode;
+    var tog = document.createElement('button');
+    tog.type = 'button'; tog.className = 'combo-tog'; tog.tabIndex = -1; tog.setAttribute('aria-label', 'Mở danh sách');
+    tog.innerHTML = '<svg viewBox="0 0 12 8" width="12" height="8" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1 1.5l5 5 5-5"/></svg>';
+    wrap.appendChild(tog);
+    function label(o) { return o ? o.label + (o.hint ? ' – ' + o.hint : '') : ''; }
+    function draw(scrollToAct) {
+      var q = typed ? fold(input.value.trim()) : '', html = '', g = null;
       shown = opts.filter(function (o) { return !q || o._f.indexOf(q) >= 0; });
       if (!shown.length) html = '<div class="combo-empty">Không tìm thấy “' + esc(input.value) + '”</div>';
       shown.forEach(function (o, i) {
         if (o.group !== g) { g = o.group; html += '<div class="combo-group">' + esc(g) + '</div>'; }
-        html += '<div class="combo-opt" role="option" data-i="' + i + '" aria-selected="' + (i === act) + '"><span>' + esc(o.label) + '</span>' + (o.hint ? '<small>' + esc(o.hint) + '</small>' : '') + '</div>';
+        html += '<div class="combo-opt' + (value && o.value === value.value ? ' cur' : '') + '" role="option" data-i="' + i + '" aria-selected="' + (i === act) + '"><span>' + esc(o.label) + '</span>' + (o.hint ? '<small>' + esc(o.hint) + '</small>' : '') + '</div>';
       });
       list.innerHTML = html;
-      var a = list.querySelector('[aria-selected="true"]'); if (a) a.scrollIntoView({ block: 'nearest' });
+      if (scrollToAct !== false) { var a = list.querySelector('[aria-selected="true"]') || list.querySelector('.cur'); if (a) a.scrollIntoView({ block: 'nearest' }); }
     }
-    function open() { list.hidden = false; input.setAttribute('aria-expanded', 'true'); draw(); }
-    function close() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); act = -1; input.value = label(value); }
-    function pick(o) { value = o; input.value = label(o); list.hidden = true; input.blur(); onPick(o.value); }
-    input.addEventListener('focus', function () { input.select(); act = -1; open(); });
-    input.addEventListener('input', function () { act = 0; open(); });
+    function open() {
+      if (list.hidden) { typed = false; act = value ? opts.indexOf(value) : -1; }
+      list.hidden = false; input.setAttribute('aria-expanded', 'true'); wrap.classList.add('open'); draw();
+    }
+    function close() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); wrap.classList.remove('open'); act = -1; typed = false; input.value = label(value); }
+    function pick(o) { value = o; input.value = label(o); list.hidden = true; wrap.classList.remove('open'); typed = false; input.blur(); onPick(o.value); }
+    input.addEventListener('focus', function () { input.select(); open(); });
+    input.addEventListener('click', function () { if (list.hidden) open(); });
+    input.addEventListener('input', function () { typed = true; act = 0; open(); });
+    tog.addEventListener('mousedown', function (e) { e.preventDefault(); if (list.hidden) { input.focus(); open(); } else close(); });
     input.addEventListener('keydown', function (e) {
-      if (e.key === 'ArrowDown') { act = Math.min(act + 1, shown.length - 1); open(); e.preventDefault(); }
-      else if (e.key === 'ArrowUp') { act = Math.max(act - 1, 0); open(); e.preventDefault(); }
-      else if (e.key === 'Enter') { if (shown[act] || shown.length === 1) pick(shown[act] || shown[0]); e.preventDefault(); }
+      if (e.key === 'ArrowDown') { if (list.hidden) open(); act = Math.min(act + 1, shown.length - 1); draw(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { act = Math.max(act - 1, 0); draw(); e.preventDefault(); }
+      else if (e.key === 'Enter') { var o = shown[act] || (shown.length === 1 && shown[0]); if (o) pick(o); e.preventDefault(); }
       else if (e.key === 'Escape') { close(); input.blur(); }
     });
     list.addEventListener('mousedown', function (e) {
