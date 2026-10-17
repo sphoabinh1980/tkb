@@ -60,7 +60,7 @@
     }
     var g = data.grid[b][who], v = g && g[d] && g[d][p];
     if (!v) return '';
-    return '<div class="sub" title="' + esc(subj(v[0]) + (v[2] ? ' – ' + v[2] : '')) + '">' + esc(v[0]) + '</div>' + (v[1] ? '<div class="who">' + esc(v[1]) + '</div>' : '');
+    return '<div class="sub" title="' + esc(subj(v[0]) + (v[2] ? ' – ' + v[2] : '')) + '">' + esc(v[0]) + '</div>' + (v[1] ? '<div class="who">' + esc(v[1]).replace(/\./g, '.<wbr>') + '</div>' : '');
   }
   function timetable(data, T, mode, who) {
     var total = 0, rows = '';
@@ -73,8 +73,8 @@
       }
     });
     var html = '<div class="tablewrap"><table class="tkb"><colgroup><col class="c-buoi"><col class="c-tiet">' +
-      DAYS.map(function () { return '<col>'; }).join('') + '</colgroup><thead><tr><th>BUỔI</th><th>TIẾT</th>' +
-      DAYS.map(function (d) { return '<th>THỨ ' + d + '</th>'; }).join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+      DAYS.map(function () { return '<col>'; }).join('') + '</colgroup><thead><tr><th><span class="dl">BUỔI</span></th><th><span class="dl">TIẾT</span><span class="ds">Tiết</span></th>' +
+      DAYS.map(function (d) { return '<th><span class="dl">THỨ </span><span class="ds">T</span>' + d + '</th>'; }).join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
     return { html: html, legend: '', total: total };
   }
 

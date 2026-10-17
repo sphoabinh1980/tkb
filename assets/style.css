@@ -233,3 +233,25 @@ table.tkb tr.pm td:not(.buoi) { background: #dfe2e6; }
 table.tkb .sub { font-weight: 700; font-size: 16px; line-height: 1.25; color: var(--ink); }
 table.tkb .who { color: #e03a3a; font-size: 12.5px; line-height: 1.3; margin-top: 2px; }
 @media print { table.tkb { min-width: 0; } table.tkb tbody td { height: 44px; } }
+
+/* bảng vừa khít màn hình điện thoại */
+table.tkb .ds { display: none; }
+@media (max-width: 760px) {
+  .tablewrap { overflow-x: visible; }
+  table.tkb { min-width: 0; }
+  table.tkb .dl { display: none; }
+  table.tkb .ds { display: inline; }
+  table.tkb col.c-buoi { width: 26px; }
+  table.tkb col.c-tiet { width: 30px; }
+  table.tkb thead th { height: 36px; font-size: 12.5px; padding: 0 1px; }
+  table.tkb td.buoi { font-size: 12px; letter-spacing: 2px; }
+  table.tkb td.tiet { font-size: 13px; }
+  table.tkb tbody td { height: 48px; padding: 2px 1px; }
+  table.tkb .sub { font-size: 12.5px; line-height: 1.15; }
+  table.tkb .who { font-size: 9.5px; line-height: 1.15; letter-spacing: -.2px; }
+  .crest-text b { font-size: 13.5px; }
+}
+@media (max-width: 360px) {
+  table.tkb .sub { font-size: 11.5px; }
+  table.tkb .who { font-size: 8.5px; }
+}
