@@ -21,7 +21,7 @@ Mỗi lần đăng sẽ thêm một bản TKB mới, các bản cũ vẫn giữ.
 4. Đợi khoảng 1–2 phút. Địa chỉ trang có dạng:
    `https://sphoabinh1980.github.io/tkb/` (trang này)
    - Gửi địa chỉ này cho giáo viên và học sinh.
-   - Tab **Quản trị** không hiện với giáo viên, học sinh. Quản trị viên mở bằng link `…/tkb/?xem=quantri` (hoặc `…/tkb/admin.html`); sau khi đăng nhập một lần, tab này hiện lại trên máy đó.
+   - Tab **Quản trị** vẫn hiện trên menu cho mọi người, nhưng phải đăng nhập bằng tài khoản quản trị mới xem được nội dung bên trong.
 
 Muốn đổi tên trường hiển thị trên đầu trang thì sửa file `assets/config.js`.
 

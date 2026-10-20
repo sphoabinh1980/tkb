@@ -128,15 +128,9 @@
     });
     var admin = tab === 'quantri';
     $('view').hidden = admin; $('admin').hidden = !admin;
-    if (admin) { document.title = 'Quản trị – Thời khóa biểu'; writeURL(); window.TKBAdmin.mount($('admin'), { reload: reloadIndex, onAuth: showAdminLink }); return; }
+    if (admin) { document.title = 'Quản trị – Thời khóa biểu'; writeURL(); window.TKBAdmin.mount($('admin'), { reload: reloadIndex }); return; }
     $('timLabel').textContent = tab === 'gv' ? 'Giáo viên' : 'Lớp';
     combo.placeholder(tab === 'gv' ? 'Gõ tên giáo viên…' : 'Gõ tên lớp…');
-  }
-
-  // Tab Quản trị chỉ hiện trên máy đã đăng nhập quản trị (hoặc khi mở thẳng ?xem=quantri)
-  function showAdminLink(on) {
-    var a = document.querySelector('.nav a[data-tab="quantri"]');
-    if (a) a.hidden = !(on || S.tab === 'quantri');
   }
 
   function reloadIndex() {
@@ -151,7 +145,7 @@
     if (CFG.schoolName) $('school').textContent = CFG.schoolName;
     $('year').textContent = 'Thời khóa biểu năm học ' + (CFG.schoolYear || '');
     combo = new R.Combo($('tim'), $('timList'), function (v) { S.who = v; writeURL(); render(); });
-    readURL(); setTab(S.tab); showAdminLink(window.TKBAdmin.hasToken());
+    readURL(); setTab(S.tab);
     reloadIndex().then(function (vs) {
       if (!vs.length) { setHead('Thời khóa biểu', 'Chưa có thời khóa biểu', [], true); $('out').innerHTML = '<div class="sheet"><div class="empty"><b>Chưa có bản nào được đăng</b>Vào tab Quản trị để tải file Excel lên.</div></div>'; return; }
       S.defDate = currentDate(vs);
@@ -166,7 +160,6 @@
         ev.preventDefault();
         if (a.dataset.tab === S.tab) return;
         setTab(a.dataset.tab);
-        showAdminLink(window.TKBAdmin.hasToken());
         if (S.tab === 'quantri') return;
         S.who = store(whoKey());
         if (!S.versions.length) return;
