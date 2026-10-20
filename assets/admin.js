@@ -7,7 +7,7 @@
 
   function q(sel) { return root.querySelector(sel); }
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem('tkbadmin.' + k); if (v === null) localStorage.removeItem('tkbadmin.' + k); else localStorage.setItem('tkbadmin.' + k, v); } catch (e) { return null; } }
-  function log(html, cls) { var d = document.createElement('div'); d.className = cls || ''; d.innerHTML = html; q('#a-log').appendChild(d); }
+  function log(html, cls) { if (!root.querySelector('#a-log')) return; var d = document.createElement('div'); d.className = cls || ''; d.innerHTML = html; q('#a-log').appendChild(d); }
   var ICON_UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>';
 
   /* ---------- base64 ---------- */
@@ -54,23 +54,77 @@
     if (!ls('repo') && repo) ls('repo', repo);
     if (!ls('branch')) ls('branch', CFG.githubBranch || 'main');
   }
-  function checkConn() {
-    var g = gh(), st = q('#a-conn');
-    if (!g.owner || !g.repo || !g.token) { drawConn(false, 'Chưa nhập mã truy cập (token).'); return Promise.resolve(false); }
-    st.innerHTML = '<span class="dot"></span> Đang kiểm tra kết nối…';
-    return api('GET', '').then(function (j) {
-      if (!j) throw new Error('Không thấy kho ' + g.owner + '/' + g.repo + ' hoặc token không được cấp quyền kho này.');
-      if (j.permissions && !j.permissions.push) throw new Error('Token chỉ có quyền đọc. Cần quyền Contents: Read and write.');
-      drawConn(true, 'Đã kết nối kho <b>' + esc(j.full_name) + '</b>');
-      return true;
-    }).catch(function (e) { drawConn(false, esc(e.message)); return false; });
+  /* ---------- xác thực: chỉ người quản trị kho mới vào được ----------
+     Trang là trang tĩnh nên không thể giấu mật khẩu trong mã nguồn.
+     Cách duy nhất chắc chắn: yêu cầu token GitHub của tài khoản có quyền
+     QUẢN TRỊ (admin) kho. GitHub kiểm tra token, người khác không giả được. */
+  var authed = false;
+  function verify(token) {
+    var g = gh();
+    if (token !== undefined) g.token = (token || '').trim();
+    if (!g.owner || !g.repo || !g.token) return Promise.reject(new Error('Chưa nhập mã truy cập (token).'));
+    return fetch('https://api.github.com/repos/' + encodeURIComponent(g.owner) + '/' + encodeURIComponent(g.repo) + '?t=' + Date.now(), {
+      headers: { 'Authorization': 'Bearer ' + g.token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+      cache: 'no-store'
+    }).then(function (r) {
+      if (r.status === 401) throw new Error('Mã truy cập không đúng hoặc đã hết hạn.');
+      if (r.status === 403 || r.status === 404) throw new Error('Mã truy cập này không có quyền với kho ' + g.owner + '/' + g.repo + '.');
+      if (!r.ok) throw new Error('Không kiểm tra được (mã ' + r.status + '). Thử lại sau.');
+      return r.json();
+    }).then(function (j) {
+      var pm = j.permissions || {};
+      if (!pm.admin) throw new Error('Tài khoản này không phải người quản trị kho. Chỉ quản trị viên mới vào được trang này.');
+      if (!pm.push) throw new Error('Mã truy cập chỉ có quyền đọc. Cần quyền Contents: Read and write.');
+      return j;
+    });
   }
-  function drawConn(ok, msg) {
-    q('#a-conn').innerHTML = '<span class="dot' + (ok ? ' on' : '') + '"></span><span>' + msg + '</span>' +
-      (ok ? '<button class="btn" type="button" id="a-edit">Đổi</button><button class="btn danger" type="button" id="a-forget">Đăng xuất trên máy này</button>' : '');
-    q('#a-form').hidden = ok;
-    if (ok) q('#a-edit').onclick = function () { q('#a-form').hidden = !q('#a-form').hidden; };
-    if (ok) q('#a-forget').onclick = function () { ls('token', null); q('#a-token').value = ''; drawConn(false, 'Đã xóa token khỏi máy này.'); };
+  function logout(msg) {
+    ls('token', null);
+    authed = false; mounted = false; cur = null;
+    if (ctx && ctx.onAuth) ctx.onAuth(false);
+    gate(msg);
+  }
+  // dùng trước mỗi thao tác ghi / xóa: kiểm tra lại, sai thì đăng xuất ngay
+  function checkConn() {
+    return verify().then(function () { return true; }).catch(function (e) { logout(esc(e.message)); return false; });
+  }
+
+  /* ---------- màn hình đăng nhập (người chưa xác thực chỉ thấy phần này) ---------- */
+  function gate(msg) {
+    root.innerHTML =
+      '<div class="head"><div><p class="who-kind">Khu vực hạn chế</p><h1 class="who-name">Quản trị</h1>' +
+      '<div class="facts"><span>Chỉ người quản trị thời khóa biểu mới vào được. Giáo viên và học sinh xem lịch ở hai tab Giáo viên và Lớp học.</span></div></div></div>' +
+      '<div class="adm"><section class="panel" style="max-width:560px"><h2>Đăng nhập quản trị</h2>' +
+        '<p class="lead">Nhập mã truy cập (token) GitHub của tài khoản quản trị kho <b>' + esc(gh().owner + '/' + gh().repo) + '</b>.</p>' +
+        '<div class="row"><div class="field" style="flex:2 1 280px"><label for="g-token">Mã truy cập</label>' +
+          '<input class="input" id="g-token" type="password" placeholder="github_pat_…" autocomplete="off"></div>' +
+          '<button class="btn primary" id="g-go" type="button" style="height:44px">Đăng nhập</button></div>' +
+        '<div class="conn" id="g-msg" style="margin-top:12px"></div>' +
+      '</section></div>';
+    var inp = q('#g-token'), go = q('#g-go'), m = q('#g-msg');
+    if (msg) m.innerHTML = '<span class="dot"></span><span>' + msg + '</span>';
+    function tryLogin(token) {
+      go.disabled = true; m.innerHTML = '<span class="dot"></span><span>Đang kiểm tra quyền quản trị…</span>';
+      verify(token).then(function (j) {
+        ls('token', (token || '').trim());
+        authed = true;
+        if (ctx && ctx.onAuth) ctx.onAuth(true);
+        build(j);
+      }).catch(function (e) {
+        ls('token', null);
+        if (ctx && ctx.onAuth) ctx.onAuth(false);
+        go.disabled = false;
+        m.innerHTML = '<span class="dot"></span><span>' + esc(e.message) + '</span>';
+      });
+    }
+    go.onclick = function () { tryLogin(inp.value); };
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryLogin(inp.value); });
+    if (ls('token')) tryLogin(ls('token'));
+  }
+  function drawConn(j) {
+    q('#a-conn').innerHTML = '<span class="dot on"></span><span>Đã đăng nhập quản trị kho <b>' + esc(j.full_name) + '</b></span>' +
+      '<button class="btn danger" type="button" id="a-forget">Đăng xuất trên máy này</button>';
+    q('#a-forget').onclick = function () { logout('Đã đăng xuất. Mã truy cập đã được xóa khỏi máy này.'); };
   }
 
   /* ---------- đọc file ---------- */
@@ -124,7 +178,7 @@
     var i = v.indexOf('|'), mode = v.slice(0, i), who = v.slice(i + 1);
     q('#a-pv').innerHTML = R.timetable(cur.data, cur.data._T, mode, who, {}).html;
   }
-  function setBtns() { var ok = !!cur && /^\d{4}-\d{2}-\d{2}$/.test(q('#a-date').value); q('#a-pub').disabled = !ok; q('#a-dl').disabled = !ok; }
+  function setBtns() { if (!root.querySelector('#a-pub')) return; var ok = !!cur && /^\d{4}-\d{2}-\d{2}$/.test(q('#a-date').value); q('#a-pub').disabled = !ok; q('#a-dl').disabled = !ok; }
 
   function buildPayload(idx) {
     var date = q('#a-date').value, now = new Date().toISOString();
@@ -211,9 +265,16 @@
   /* ---------- dựng giao diện ---------- */
   function mount(el, c) {
     ctx = c;
+    if (!root) { root = el; defaults(); }
     if (mounted) return;
-    mounted = true; root = el; defaults();
-    el.innerHTML =
+    mounted = true;
+    if (authed) return;
+    gate();
+  }
+
+  // chỉ gọi sau khi đã xác thực quyền quản trị
+  function build(j) {
+    root.innerHTML =
       '<div class="head"><div><p class="who-kind">Dành cho người xếp thời khóa biểu</p><h1 class="who-name">Quản trị</h1>' +
       '<div class="facts"><span>Tải file Excel lên, chọn ngày áp dụng rồi bấm Đăng. Giáo viên và học sinh sẽ thấy bản mới ở hai tab Giáo viên và Lớp học.</span></div></div></div>' +
       '<div class="adm">' +
@@ -231,27 +292,9 @@
           '<button class="btn lg" id="a-dl" type="button" disabled>Tải dữ liệu về máy</button></div><div class="log" id="a-log" style="margin-top:12px"></div></div>' +
       '</section>' +
       '<section class="panel"><h2>Các bản đã đăng</h2><p class="lead">Trang xem tự chọn bản đang áp dụng theo ngày hôm nay.</p><div id="a-vers">Đang tải…</div></section>' +
-      '<section class="panel"><h2>Kết nối GitHub</h2><p class="lead">Cần mã truy cập (token) để đăng. Token chỉ lưu trên trình duyệt của máy này.</p>' +
-        '<div class="conn" id="a-conn"></div>' +
-        '<div id="a-form" hidden style="margin-top:14px"><div class="row">' +
-          '<div class="field"><label for="a-owner">Tài khoản</label><input class="input" id="a-owner"></div>' +
-          '<div class="field"><label for="a-repo">Kho</label><input class="input" id="a-repo"></div>' +
-          '<div class="field" style="flex:0 1 120px"><label for="a-branch">Nhánh</label><input class="input" id="a-branch"></div>' +
-          '<div class="field" style="flex:2 1 280px"><label for="a-token">Token</label><input class="input" id="a-token" type="password" placeholder="github_pat_…" autocomplete="off"></div>' +
-          '<button class="btn primary" id="a-save" type="button" style="height:44px">Lưu và kiểm tra</button></div>' +
-          '<details class="help"><summary>Cách tạo token</summary><ol>' +
-            '<li>Trên GitHub: ảnh đại diện → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>' +
-            '<li><i>Repository access</i>: <b>Only select repositories</b> → chọn kho thời khóa biểu.</li>' +
-            '<li><i>Permissions</i> → <i>Contents</i>: <b>Read and write</b>. Bấm <b>Generate token</b>, sao chép và dán vào ô Token.</li></ol></details>' +
-        '</div></section></div>';
-
-    var g = gh();
-    q('#a-owner').value = g.owner; q('#a-repo').value = g.repo; q('#a-branch').value = g.branch; q('#a-token').value = g.token;
-    q('#a-save').onclick = function () {
-      ['owner', 'repo', 'branch', 'token'].forEach(function (k) { ls(k, q('#a-' + k).value.trim()); });
-      checkConn();
-    };
-    if (g.token) checkConn(); else drawConn(false, 'Chưa nhập mã truy cập (token).');
+      '<section class="panel"><h2>Tài khoản quản trị</h2><p class="lead">Mã truy cập chỉ lưu trên trình duyệt của máy này. Dùng máy chung thì nhớ đăng xuất.</p>' +
+        '<div class="conn" id="a-conn"></div></section></div>';
+    drawConn(j);
 
     var drop = q('#a-drop'), file = q('#a-file');
     file.onchange = function () { if (file.files[0]) readFile(file.files[0]); };
@@ -267,5 +310,5 @@
       .catch(function () { q('#a-vers').innerHTML = '<p class="lead">Chưa có bản nào.</p>'; });
   }
 
-  window.TKBAdmin = { mount: mount };
+  window.TKBAdmin = { mount: mount, hasToken: function () { return !!ls('token'); } };
 })();
