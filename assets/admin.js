@@ -16,8 +16,9 @@
   function b64ToStr(b64) { var bin = atob(b64.replace(/\s/g, '')), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new TextDecoder().decode(u); }
 
   /* ---------- GitHub ---------- */
+  var TOKEN = '';  // token chỉ giữ trong bộ nhớ / phiên làm việc, không lưu lâu dài
   function gh() {
-    return { owner: (ls('owner') || '').trim(), repo: (ls('repo') || '').trim(), branch: (ls('branch') || 'main').trim(), token: (ls('token') || '').trim() };
+    return { owner: (ls('owner') || '').trim(), repo: (ls('repo') || '').trim(), branch: (ls('branch') || 'main').trim(), token: TOKEN };
   }
   function api(method, path, body) {
     var g = gh();
@@ -54,34 +55,65 @@
     if (!ls('repo') && repo) ls('repo', repo);
     if (!ls('branch')) ls('branch', CFG.githubBranch || 'main');
   }
-  /* ---------- xác thực: chỉ người quản trị kho mới vào được ----------
-     Trang là trang tĩnh nên không thể giấu mật khẩu trong mã nguồn.
-     Cách duy nhất chắc chắn: yêu cầu token GitHub của tài khoản có quyền
-     QUẢN TRỊ (admin) kho. GitHub kiểm tra token, người khác không giả được. */
+  /* ---------- xác thực: đăng nhập bằng tên + mật khẩu quản trị ----------
+     Trang là trang tĩnh: không thể giấu mật khẩu trong mã nguồn.
+     Vì vậy token GitHub (quyền ghi kho) được MÃ HÓA bằng tên đăng nhập + mật khẩu
+     (PBKDF2-SHA256, 600 000 vòng → AES-GCM 256 bit) và lưu ở data/admin-auth.json.
+     Đăng nhập = giải mã được token VÀ GitHub xác nhận token thuộc quản trị viên kho.
+     Không biết mật khẩu thì không có token, không xem được giao diện, không ghi/xóa được gì. */
+  var AUTH_PATH = 'data/admin-auth.json', ITER = 600000;
   var authed = false;
+  var te = new TextEncoder(), td = new TextDecoder();
+  function b64(u8) { return bytesToB64(u8); }
+  function unb64(s) { var bin = atob(s), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+  function keyFrom(user, pass, salt, iter) {
+    return crypto.subtle.importKey('raw', te.encode(user.trim().toLowerCase() + '\n' + pass), 'PBKDF2', false, ['deriveKey'])
+      .then(function (k) { return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: iter, hash: 'SHA-256' }, k, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']); });
+  }
+  function seal(user, pass, token) {
+    var salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    return keyFrom(user, pass, salt, ITER).then(function (k) { return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, k, te.encode(token)); })
+      .then(function (ct) { return { v: 1, kdf: 'PBKDF2-SHA256', iter: ITER, salt: b64(salt), iv: b64(iv), data: b64(new Uint8Array(ct)), updated: new Date().toISOString() }; });
+  }
+  function unseal(rec, user, pass) {
+    return keyFrom(user, pass, unb64(rec.salt), rec.iter || ITER)
+      .then(function (k) { return crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(rec.iv) }, k, unb64(rec.data)); })
+      .then(function (pt) { return td.decode(pt); }, function () { throw new Error('Sai tên đăng nhập hoặc mật khẩu.'); });
+  }
+  function readAuth() {
+    return fetch(AUTH_PATH + '?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      .then(function (j) { return j && j.data ? j : null; });
+  }
+  // GitHub kiểm tra: token hợp lệ và thuộc tài khoản có quyền QUẢN TRỊ kho
   function verify(token) {
     var g = gh();
     if (token !== undefined) g.token = (token || '').trim();
-    if (!g.owner || !g.repo || !g.token) return Promise.reject(new Error('Chưa nhập mã truy cập (token).'));
+    if (!g.owner || !g.repo || !g.token) return Promise.reject(new Error('Chưa có mã truy cập.'));
     return fetch('https://api.github.com/repos/' + encodeURIComponent(g.owner) + '/' + encodeURIComponent(g.repo) + '?t=' + Date.now(), {
       headers: { 'Authorization': 'Bearer ' + g.token, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
       cache: 'no-store'
     }).then(function (r) {
-      if (r.status === 401) throw new Error('Mã truy cập không đúng hoặc đã hết hạn.');
+      if (r.status === 401) throw new Error('Mã truy cập GitHub không đúng hoặc đã hết hạn.');
       if (r.status === 403 || r.status === 404) throw new Error('Mã truy cập này không có quyền với kho ' + g.owner + '/' + g.repo + '.');
       if (!r.ok) throw new Error('Không kiểm tra được (mã ' + r.status + '). Thử lại sau.');
       return r.json();
     }).then(function (j) {
       var pm = j.permissions || {};
-      if (!pm.admin) throw new Error('Tài khoản này không phải người quản trị kho. Chỉ quản trị viên mới vào được trang này.');
+      if (!pm.admin) throw new Error('Tài khoản GitHub này không phải người quản trị kho.');
       if (!pm.push) throw new Error('Mã truy cập chỉ có quyền đọc. Cần quyền Contents: Read and write.');
       return j;
     });
   }
+  function ss(k, v) { try { if (v === undefined) return sessionStorage.getItem('tkbadmin.' + k); if (v === null) sessionStorage.removeItem('tkbadmin.' + k); else sessionStorage.setItem('tkbadmin.' + k, v); } catch (e) { return null; } }
+  function enter(token, user, j) {
+    TOKEN = token; ss('t', token); ss('u', user || '');
+    authed = true;
+    build(j, user);
+  }
   function logout(msg) {
-    ls('token', null);
-    authed = false; mounted = false; cur = null;
-    if (ctx && ctx.onAuth) ctx.onAuth(false);
+    TOKEN = ''; ss('t', null); ss('u', null);
+    authed = false; mounted = true; cur = null;
     gate(msg);
   }
   // dùng trước mỗi thao tác ghi / xóa: kiểm tra lại, sai thì đăng xuất ngay
@@ -89,42 +121,126 @@
     return verify().then(function () { return true; }).catch(function (e) { logout(esc(e.message)); return false; });
   }
 
-  /* ---------- màn hình đăng nhập (người chưa xác thực chỉ thấy phần này) ---------- */
-  function gate(msg) {
+  /* ---------- màn hình đăng nhập (người chưa đăng nhập chỉ thấy phần này) ---------- */
+  function shell(title, inner) {
     root.innerHTML =
       '<div class="head"><div><p class="who-kind">Khu vực hạn chế</p><h1 class="who-name">Quản trị</h1>' +
-      '<div class="facts"><span>Chỉ người quản trị thời khóa biểu mới vào được. Giáo viên và học sinh xem lịch ở hai tab Giáo viên và Lớp học.</span></div></div></div>' +
-      '<div class="adm"><section class="panel" style="max-width:560px"><h2>Đăng nhập quản trị</h2>' +
-        '<p class="lead">Nhập mã truy cập (token) GitHub của tài khoản quản trị kho <b>' + esc(gh().owner + '/' + gh().repo) + '</b>.</p>' +
-        '<div class="row"><div class="field" style="flex:2 1 280px"><label for="g-token">Mã truy cập</label>' +
-          '<input class="input" id="g-token" type="password" placeholder="github_pat_…" autocomplete="off"></div>' +
-          '<button class="btn primary" id="g-go" type="button" style="height:44px">Đăng nhập</button></div>' +
-        '<div class="conn" id="g-msg" style="margin-top:12px"></div>' +
-      '</section></div>';
-    var inp = q('#g-token'), go = q('#g-go'), m = q('#g-msg');
-    if (msg) m.innerHTML = '<span class="dot"></span><span>' + msg + '</span>';
-    function tryLogin(token) {
-      go.disabled = true; m.innerHTML = '<span class="dot"></span><span>Đang kiểm tra quyền quản trị…</span>';
-      verify(token).then(function (j) {
-        ls('token', (token || '').trim());
-        authed = true;
-        if (ctx && ctx.onAuth) ctx.onAuth(true);
-        build(j);
-      }).catch(function (e) {
-        ls('token', null);
-        if (ctx && ctx.onAuth) ctx.onAuth(false);
-        go.disabled = false;
-        m.innerHTML = '<span class="dot"></span><span>' + esc(e.message) + '</span>';
-      });
-    }
-    go.onclick = function () { tryLogin(inp.value); };
-    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryLogin(inp.value); });
-    if (ls('token')) tryLogin(ls('token'));
+      '<div class="facts"><span>Chỉ quản trị viên mới vào được. Giáo viên và học sinh xem lịch ở hai tab Giáo viên và Lớp học.</span></div></div></div>' +
+      '<div class="adm"><section class="panel" style="max-width:520px;margin:0 auto;width:100%"><h2>' + title + '</h2>' + inner +
+      '<div class="conn" id="g-msg" style="margin-top:12px"></div></section></div>';
   }
-  function drawConn(j) {
-    q('#a-conn').innerHTML = '<span class="dot on"></span><span>Đã đăng nhập quản trị kho <b>' + esc(j.full_name) + '</b></span>' +
-      '<button class="btn danger" type="button" id="a-forget">Đăng xuất trên máy này</button>';
-    q('#a-forget').onclick = function () { logout('Đã đăng xuất. Mã truy cập đã được xóa khỏi máy này.'); };
+  function say(msg, ok) { var m = q('#g-msg'); if (m) m.innerHTML = msg ? '<span class="dot' + (ok ? ' on' : '') + '"></span><span>' + msg + '</span>' : ''; }
+  function field(id, label, type, ph, ac) {
+    return '<div class="field" style="flex:1 1 100%"><label for="' + id + '">' + label + '</label><input class="input" id="' + id + '" type="' + type + '"' +
+      (ph ? ' placeholder="' + ph + '"' : '') + ' autocomplete="' + (ac || 'off') + '"></div>';
+  }
+  function busy(on) { root.querySelectorAll('.adm button, .adm input').forEach(function (x) { x.disabled = on; }); }
+
+  function gate(msg) {
+    // phiên đang mở (chưa đóng trình duyệt): vào thẳng nếu token vẫn hợp lệ
+    if (!authed && ss('t')) {
+      shell('Đăng nhập quản trị', '<p class="lead">Đang kiểm tra phiên đăng nhập…</p>');
+      var t0 = ss('t'), u0 = ss('u');
+      verify(t0).then(function (j) { enter(t0, u0, j); }, function () { ss('t', null); gate(msg); });
+      return;
+    }
+    shell('Đăng nhập quản trị', '<p class="lead">Đang tải…</p>');
+    readAuth().then(function (rec) {
+      if (!rec) return setupForm(msg);
+      loginForm(rec, msg);
+    });
+  }
+
+  function loginForm(rec, msg) {
+    shell('Đăng nhập quản trị',
+      '<form id="g-form" class="row" autocomplete="on" onsubmit="return false">' +
+        field('g-user', 'Tên đăng nhập', 'text', '', 'username') +
+        field('g-pass', 'Mật khẩu', 'password', '', 'current-password') +
+        '<button class="btn primary" id="g-go" type="submit" style="height:44px;width:100%">Đăng nhập</button></form>' +
+      '<details class="help" style="margin-top:14px"><summary>Quên mật khẩu?</summary>' +
+        '<p class="lead" style="margin-top:8px">Quản trị viên đăng nhập bằng mã truy cập (token) GitHub để đặt lại tên đăng nhập và mật khẩu.</p>' +
+        '<button class="btn" id="g-reset" type="button">Đặt lại bằng token GitHub</button></details>');
+    if (msg) say(msg);
+    q('#g-user').focus();
+    q('#g-form').onsubmit = function () {
+      var u = q('#g-user').value, pw = q('#g-pass').value;
+      if (!u.trim() || !pw) { say('Nhập tên đăng nhập và mật khẩu.'); return false; }
+      busy(true); say('Đang kiểm tra…');
+      unseal(rec, u, pw).then(function (token) {
+        return verify(token).then(function (j) { enter(token, u.trim(), j); }, function (e) {
+          throw new Error('Mật khẩu đúng nhưng ' + e.message.charAt(0).toLowerCase() + e.message.slice(1) + ' Hãy dùng “Quên mật khẩu?” để cập nhật token mới.');
+        });
+      }).catch(function (e) { busy(false); q('#g-pass').value = ''; say(esc(e.message)); });
+      return false;
+    };
+    q('#g-reset').onclick = function () { setupForm('', true); };
+  }
+
+  // lần đầu (chưa có tài khoản) hoặc đặt lại: cần token GitHub của quản trị viên kho
+  function setupForm(msg, reset) {
+    shell(reset ? 'Đặt lại tài khoản quản trị' : 'Tạo tài khoản quản trị (lần đầu)',
+      '<p class="lead">Chỉ quản trị viên kho <b>' + esc(gh().owner + '/' + gh().repo) + '</b> làm được bước này: cần mã truy cập (token) GitHub có quyền quản trị kho. ' +
+      'Sau bước này, chỉ cần tên đăng nhập và mật khẩu.</p>' +
+      '<form id="s-form" class="row" onsubmit="return false">' +
+        field('s-token', 'Mã truy cập GitHub', 'password', 'github_pat_…') +
+        field('s-user', 'Tên đăng nhập mới', 'text', 'ví dụ: admin', 'username') +
+        field('s-pass', 'Mật khẩu mới (ít nhất 10 kí tự)', 'password', '', 'new-password') +
+        field('s-pass2', 'Nhập lại mật khẩu', 'password', '', 'new-password') +
+        '<button class="btn primary" type="submit" style="height:44px;width:100%">' + (reset ? 'Đặt lại và đăng nhập' : 'Tạo tài khoản và đăng nhập') + '</button></form>' +
+      (reset ? '<p style="margin-top:10px"><button class="btn" id="s-back" type="button">← Quay lại đăng nhập</button></p>' : '') +
+      '<details class="help" style="margin-top:14px"><summary>Cách tạo token</summary><ol>' +
+        '<li>Trên GitHub: ảnh đại diện → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>' +
+        '<li><i>Repository access</i>: <b>Only select repositories</b> → chọn kho thời khóa biểu.</li>' +
+        '<li><i>Permissions</i> → <i>Contents</i>: <b>Read and write</b>. Bấm <b>Generate token</b> và sao chép.</li></ol></details>');
+    if (msg) say(msg);
+    if (reset) q('#s-back').onclick = function () { gate(); };
+    q('#s-form').onsubmit = function () {
+      var tk = q('#s-token').value.trim(), u = q('#s-user').value.trim(), p1 = q('#s-pass').value, p2 = q('#s-pass2').value;
+      if (!tk || !u) { say('Nhập đủ mã truy cập và tên đăng nhập.'); return false; }
+      if (p1.length < 10) { say('Mật khẩu cần ít nhất 10 kí tự.'); return false; }
+      if (p1 !== p2) { say('Hai lần nhập mật khẩu không khớp.'); return false; }
+      busy(true); say('Đang kiểm tra quyền quản trị…');
+      verify(tk).then(function (j) {
+        TOKEN = tk;
+        say('Đang lưu tài khoản…');
+        return seal(u, p1, tk).then(function (rec) {
+          return putFile(AUTH_PATH, strToB64(JSON.stringify(rec, null, 2)), 'Cập nhật tài khoản quản trị');
+        }).then(function () { enter(tk, u, j); });
+      }).catch(function (e) { TOKEN = ''; busy(false); say(esc(e.message)); });
+      return false;
+    };
+  }
+
+  function drawConn(j, user) {
+    q('#a-conn').innerHTML = '<span class="dot on"></span><span>Đang đăng nhập' + (user ? ' với tên <b>' + esc(user) + '</b>' : '') +
+      ' (quản trị kho <b>' + esc(j.full_name) + '</b>)</span>' +
+      '<button class="btn" type="button" id="a-chpw">Đổi mật khẩu</button>' +
+      '<button class="btn danger" type="button" id="a-forget">Đăng xuất</button>';
+    q('#a-forget').onclick = function () { logout('Đã đăng xuất.'); };
+    q('#a-chpw').onclick = function () {
+      var box = q('#a-pw');
+      if (!box.hidden) { box.hidden = true; return; }
+      box.hidden = false;
+      box.innerHTML = '<form class="row" id="p-form" onsubmit="return false" style="margin-top:12px">' +
+        '<div class="field"><label for="p-user">Tên đăng nhập</label><input class="input" id="p-user" autocomplete="username"></div>' +
+        '<div class="field"><label for="p-pass">Mật khẩu mới</label><input class="input" id="p-pass" type="password" autocomplete="new-password"></div>' +
+        '<div class="field"><label for="p-pass2">Nhập lại</label><input class="input" id="p-pass2" type="password" autocomplete="new-password"></div>' +
+        '<button class="btn primary" type="submit" style="height:44px">Lưu</button></form><div class="log" id="p-msg"></div>';
+      q('#p-user').value = user || '';
+      q('#p-form').onsubmit = function () {
+        var u = q('#p-user').value.trim(), p1 = q('#p-pass').value, p2 = q('#p-pass2').value, m = q('#p-msg');
+        if (!u) { m.innerHTML = '<div class="bad">Nhập tên đăng nhập.</div>'; return false; }
+        if (p1.length < 10) { m.innerHTML = '<div class="bad">Mật khẩu cần ít nhất 10 kí tự.</div>'; return false; }
+        if (p1 !== p2) { m.innerHTML = '<div class="bad">Hai lần nhập mật khẩu không khớp.</div>'; return false; }
+        m.innerHTML = 'Đang lưu…';
+        checkConn().then(function (ok) {
+          if (!ok) return;
+          return seal(u, p1, TOKEN).then(function (rec) { return putFile(AUTH_PATH, strToB64(JSON.stringify(rec, null, 2)), 'Đổi mật khẩu quản trị'); })
+            .then(function () { user = u; ss('u', u); m.innerHTML = '<div class="ok">Đã đổi. Lần đăng nhập sau dùng tên và mật khẩu mới (có hiệu lực sau khoảng 1–2 phút).</div>'; });
+        }).catch(function (e) { m.innerHTML = '<div class="bad">' + esc(e.message) + '</div>'; });
+        return false;
+      };
+    };
   }
 
   /* ---------- đọc file ---------- */
@@ -265,7 +381,7 @@
   /* ---------- dựng giao diện ---------- */
   function mount(el, c) {
     ctx = c;
-    if (!root) { root = el; defaults(); }
+    if (!root) { root = el; defaults(); try { localStorage.removeItem('tkbadmin.token'); } catch (e) {} }
     if (mounted) return;
     mounted = true;
     if (authed) return;
@@ -273,7 +389,7 @@
   }
 
   // chỉ gọi sau khi đã xác thực quyền quản trị
-  function build(j) {
+  function build(j, user) {
     root.innerHTML =
       '<div class="head"><div><p class="who-kind">Dành cho người xếp thời khóa biểu</p><h1 class="who-name">Quản trị</h1>' +
       '<div class="facts"><span>Tải file Excel lên, chọn ngày áp dụng rồi bấm Đăng. Giáo viên và học sinh sẽ thấy bản mới ở hai tab Giáo viên và Lớp học.</span></div></div></div>' +
@@ -292,9 +408,9 @@
           '<button class="btn lg" id="a-dl" type="button" disabled>Tải dữ liệu về máy</button></div><div class="log" id="a-log" style="margin-top:12px"></div></div>' +
       '</section>' +
       '<section class="panel"><h2>Các bản đã đăng</h2><p class="lead">Trang xem tự chọn bản đang áp dụng theo ngày hôm nay.</p><div id="a-vers">Đang tải…</div></section>' +
-      '<section class="panel"><h2>Tài khoản quản trị</h2><p class="lead">Mã truy cập chỉ lưu trên trình duyệt của máy này. Dùng máy chung thì nhớ đăng xuất.</p>' +
-        '<div class="conn" id="a-conn"></div></section></div>';
-    drawConn(j);
+      '<section class="panel"><h2>Tài khoản quản trị</h2><p class="lead">Phiên đăng nhập tự hết khi đóng trình duyệt. Dùng máy chung thì nhớ bấm Đăng xuất.</p>' +
+        '<div class="conn" id="a-conn"></div><div id="a-pw" hidden></div></section></div>';
+    drawConn(j, user);
 
     var drop = q('#a-drop'), file = q('#a-file');
     file.onchange = function () { if (file.files[0]) readFile(file.files[0]); };
@@ -310,5 +426,5 @@
       .catch(function () { q('#a-vers').innerHTML = '<p class="lead">Chưa có bản nào.</p>'; });
   }
 
-  window.TKBAdmin = { mount: mount, hasToken: function () { return !!ls('token'); } };
+  window.TKBAdmin = { mount: mount };
 })();

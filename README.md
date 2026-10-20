@@ -25,19 +25,29 @@ Mỗi lần đăng sẽ thêm một bản TKB mới, các bản cũ vẫn giữ.
 
 Muốn đổi tên trường hiển thị trên đầu trang thì sửa file `assets/config.js`.
 
-## 2. Tạo mã truy cập (token) cho trang quản trị (làm một lần)
+## 2. Tài khoản quản trị (làm một lần)
 
-Trang quản trị bị khóa. Chỉ ai nhập được token GitHub của **tài khoản có quyền quản trị (admin) kho** mới vào được để xem, đăng và xóa thời khóa biểu. Trang gửi token cho GitHub kiểm tra; token sai, hết hạn hoặc thuộc tài khoản không phải quản trị kho đều bị từ chối, và giao diện quản trị không được tạo ra. Vì kho để Public, đừng thêm giáo viên khác làm cộng tác viên có quyền Admin.
+Tab **Quản trị** hiện trên menu cho mọi người, nhưng bấm vào chỉ thấy ô **Đăng nhập quản trị**. Phải đúng tên đăng nhập và mật khẩu quản trị mới xem được nội dung, đăng và xóa thời khóa biểu.
 
-1. Vào GitHub, chọn **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
-2. Điền các mục sau:
+**Tạo tài khoản lần đầu**
+
+1. Tạo token GitHub cho tài khoản quản trị kho:
+   - Vào **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
    - *Expiration*: tùy chọn, ví dụ 1 năm.
    - *Repository access*: **Only select repositories**, chọn kho `tkb`.
    - *Permissions → Repository permissions → Contents*: **Read and write**.
-3. Bấm **Generate token** và sao chép token (bắt đầu bằng `github_pat_…`).
-4. Mở `…/tkb/?xem=quantri`, dán token vào ô **Mã truy cập** rồi bấm **Đăng nhập**.
+   - Bấm **Generate token** và sao chép token (bắt đầu bằng `github_pat_…`).
+2. Mở tab **Quản trị**. Lần đầu trang hiện mục **Tạo tài khoản quản trị**. Dán token, đặt **tên đăng nhập** và **mật khẩu** (ít nhất 10 kí tự), rồi bấm **Tạo tài khoản và đăng nhập**.
 
-Token chỉ được lưu trong trình duyệt của máy đang dùng, không đưa lên trang. Nếu dùng máy chung, bấm **Đăng xuất trên máy này** sau khi làm xong. Lỡ để lộ token thì vào GitHub xóa (Revoke) token đó và tạo token mới.
+Từ đó, ở máy nào cũng chỉ cần gõ tên đăng nhập và mật khẩu. Phiên đăng nhập tự hết khi đóng trình duyệt; dùng máy chung thì bấm **Đăng xuất**. Trong tab Quản trị có nút **Đổi mật khẩu**.
+
+**Cách bảo vệ.** Trang là trang tĩnh nên không giấu được mật khẩu trong mã nguồn. Thay vào đó, token GitHub được **mã hóa** bằng tên đăng nhập và mật khẩu (PBKDF2-SHA256 600 000 vòng, AES-GCM 256 bit) rồi lưu ở `data/admin-auth.json`. File này không chứa mật khẩu hay token ở dạng đọc được. Khi đăng nhập:
+- sai tên hoặc mật khẩu thì không giải mã được token, không vào được;
+- đúng mật khẩu, trang còn hỏi GitHub để chắc token vẫn hợp lệ và thuộc **quản trị viên kho**.
+
+Giao diện quản trị chỉ được tạo ra sau khi qua cả hai bước. Hãy đặt mật khẩu dài, khó đoán, và đừng thêm giáo viên khác làm cộng tác viên có quyền Admin.
+
+**Quên mật khẩu hoặc token hết hạn:** ở ô đăng nhập bấm **Quên mật khẩu? → Đặt lại bằng token GitHub**, dán token (mới), đặt lại tên và mật khẩu. Lỡ để lộ token thì vào GitHub bấm **Revoke** rồi đặt lại bằng token mới.
 
 ## 3. Đăng thời khóa biểu mới (mỗi lần thay TKB)
 
@@ -51,7 +61,7 @@ Token chỉ được lưu trong trình duyệt của máy đang dùng, không đ
    - Đăng lại cùng một ngày áp dụng thì bản cũ của ngày đó bị ghi đè; trang sẽ hỏi trước khi ghi đè.
    - Có thể tích ô *Lưu kèm file Excel gốc* để lưu trữ file trên kho.
 
-**Cách khác không cần token:** bấm **Tải dữ liệu về máy** để nhận 2 file.
+**Cách khác (sau khi đăng nhập):** bấm **Tải dữ liệu về máy** để nhận 2 file.
 - Đưa file `<ngày>.json` vào thư mục `data/tkb/` trên GitHub.
 - Thay file `data/index.json` bằng file `index.json` vừa tải về.
 
@@ -96,6 +106,7 @@ assets/admin.js       tab Quản trị (đăng lên GitHub qua API)
 assets/config.js      tên trường, năm học
 assets/vendor/        thư viện SheetJS đọc Excel (bản 0.18.5, giấy phép Apache-2.0)
 data/index.json       danh sách các bản TKB (ngày áp dụng)
+data/admin-auth.json  tài khoản quản trị (token đã mã hóa; tạo ở lần đăng nhập đầu)
 data/tkb/*.json       dữ liệu từng bản
 data/xlsx/*.xlsx      file Excel gốc (nếu chọn lưu kèm)
 tools/build-data.js   chuyển Excel → dữ liệu bằng Node.js
